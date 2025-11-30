@@ -29,8 +29,8 @@ export async function POST(req: Request) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Bypass-Tunnel-Reminder': 'true', // Bypass Localtunnel password
-        'ngrok-skip-browser-warning': 'true', // Bypass Ngrok warning (just in case)
+        'Bypass-Tunnel-Reminder': 'true',
+        'ngrok-skip-browser-warning': 'true',
       },
       body: JSON.stringify({
         model: MODEL,
@@ -40,11 +40,11 @@ export async function POST(req: Request) {
     });
 
     if (!response.ok) {
-      console.error('Ollama API error:', response.status, response.statusText);
-      return new Response('Error connecting to Ollama', { status: 500 });
+      const errorText = await response.text();
+      console.error('Ollama API error:', response.status, errorText);
+      return new Response(`Error from Ollama: ${response.status} - ${errorText}`, { status: 500 });
     }
 
-    // Convert the response into a friendly text-stream
     const stream = new ReadableStream({
       async start(controller) {
         const reader = response.body?.getReader();
@@ -54,31 +54,44 @@ export async function POST(req: Request) {
         }
 
         const decoder = new TextDecoder();
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
 
-          const chunk = decoder.decode(value, { stream: true });
-          const lines = chunk.split('\n').filter((line) => line.trim() !== '');
+            const chunk = decoder.decode(value, { stream: true });
+            const lines = chunk.split('\n').filter((line) => line.trim() !== '');
 
-          for (const line of lines) {
-            try {
-              const json = JSON.parse(line);
-              if (json.message && json.message.content) {
-                controller.enqueue(json.message.content);
+            for (const line of lines) {
+              try {
+                const json = JSON.parse(line);
+                if (json.message && json.message.content) {
+                  controller.enqueue(json.message.content);
+                }
+                if (json.error) {
+                  console.error('Ollama stream error:', json.error);
+                  controller.enqueue(`\n\n[Error: ${json.error}]`);
+                }
+                if (json.done) {
+                  // Stream finished
+                }
+              } catch (e) {
+                console.error('Error parsing JSON chunk', e);
               }
-            } catch (e) {
-              console.error('Error parsing JSON chunk', e);
             }
           }
+        } catch (err) {
+          console.error('Stream reading error:', err);
+          controller.error(err);
+        } finally {
+          controller.close();
         }
-        controller.close();
       },
     });
 
     return new StreamingTextResponse(stream);
-  } catch (error) {
+  } catch (error: any) {
     console.error('Route handler error:', error);
-    return new Response('Internal Server Error', { status: 500 });
+    return new Response(`Internal Server Error: ${error.message}`, { status: 500 });
   }
 }
