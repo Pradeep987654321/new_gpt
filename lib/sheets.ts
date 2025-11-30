@@ -1,17 +1,29 @@
 import { GoogleSpreadsheet } from 'google-spreadsheet';
+import fs from 'fs';
+import path from 'path';
 
 // Load credentials from environment or file
 function getCredentials() {
     if (process.env.GOOGLE_SERVICE_ACCOUNT_CREDENTIALS) {
         // Vercel: Read from environment variable
-        return JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_CREDENTIALS);
-    } else {
-        // Local: Try to read from file
         try {
-            return require('../service-account.json');
+            return JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_CREDENTIALS);
         } catch (e) {
-            throw new Error('Google Service Account credentials not found. Please set GOOGLE_SERVICE_ACCOUNT_CREDENTIALS environment variable or add service-account.json file.');
+            console.error('Failed to parse GOOGLE_SERVICE_ACCOUNT_CREDENTIALS', e);
+            return null;
         }
+    } else {
+        // Local: Try to read from file using fs to avoid Webpack bundling issues
+        try {
+            const filePath = path.join(process.cwd(), 'service-account.json');
+            if (fs.existsSync(filePath)) {
+                const fileContent = fs.readFileSync(filePath, 'utf-8');
+                return JSON.parse(fileContent);
+            }
+        } catch (e) {
+            console.warn('Local service-account.json not found or unreadable.');
+        }
+        return null;
     }
 }
 
@@ -27,6 +39,10 @@ export async function initSheet() {
 
     if (!SHEET_ID) {
         throw new Error('GOOGLE_SHEET_ID environment variable is not set');
+    }
+
+    if (!credentials) {
+        throw new Error('Google Service Account credentials not found. Set GOOGLE_SERVICE_ACCOUNT_CREDENTIALS env var or add service-account.json locally.');
     }
 
     const doc = new GoogleSpreadsheet(SHEET_ID);
@@ -67,7 +83,7 @@ export async function addUser(user: {
     console.log('Users sheet found, getting rows...');
     const rows = await sheet.getRows();
     console.log('Got rows, checking for existing user...');
-    const exists = rows.find((row) => row.UserID === user.userId);
+    const exists = rows.find((row: any) => row.UserID === user.userId);
     if (exists) {
         throw new Error('User ID already exists');
     }
@@ -92,7 +108,7 @@ export async function getUserStatus(userId: string) {
     if (!sheet) return null;
 
     const rows = await sheet.getRows();
-    const userRow = rows.find((row) => row.UserID === userId);
+    const userRow = rows.find((row: any) => row.UserID === userId);
 
     if (!userRow) return null;
     return userRow.Status;
