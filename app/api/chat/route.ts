@@ -24,7 +24,8 @@ export async function POST(req: Request) {
     }
 
     // Manual request to Ollama
-    const response = await fetch('http://localhost:11434/api/chat', {
+    const baseUrl = process.env.OLLAMA_BASE_URL || 'http://localhost:11434/api';
+    const response = await fetch(`${baseUrl}/chat`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
