@@ -28,6 +28,8 @@ export async function POST(req: Request) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Bypass-Tunnel-Reminder': 'true', // Bypass Localtunnel password
+        'ngrok-skip-browser-warning': 'true', // Bypass Ngrok warning (just in case)
       },
       body: JSON.stringify({
         model: MODEL,
