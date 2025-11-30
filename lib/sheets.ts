@@ -1,23 +1,29 @@
 import { GoogleSpreadsheet } from 'google-spreadsheet';
 
 // Load credentials from environment or file
-let credentials: any;
-if (process.env.GOOGLE_SERVICE_ACCOUNT_CREDENTIALS) {
-    // Vercel: Read from environment variable
-    credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_CREDENTIALS);
-} else {
-    // Local: Read from file
-    credentials = require('../service-account.json');
+function getCredentials() {
+    if (process.env.GOOGLE_SERVICE_ACCOUNT_CREDENTIALS) {
+        // Vercel: Read from environment variable
+        return JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_CREDENTIALS);
+    } else {
+        // Local: Try to read from file
+        try {
+            return require('../service-account.json');
+        } catch (e) {
+            throw new Error('Google Service Account credentials not found. Please set GOOGLE_SERVICE_ACCOUNT_CREDENTIALS environment variable or add service-account.json file.');
+        }
+    }
 }
 
 export async function initSheet() {
+    const credentials = getCredentials();
+
     // Try multiple ways to get the Sheet ID
     const SHEET_ID = process.env.GOOGLE_SHEET_ID ||
         process.env.NEXT_PUBLIC_GOOGLE_SHEET_ID ||
         '1c2js8--JqsjCozHXGIOZiJNasQtKebOJE86-dRQX9iQ';
 
     console.log('Initializing Sheet with ID:', SHEET_ID);
-    console.log('All env vars:', Object.keys(process.env).filter(k => k.includes('GOOGLE')));
 
     if (!SHEET_ID) {
         throw new Error('GOOGLE_SHEET_ID environment variable is not set');
